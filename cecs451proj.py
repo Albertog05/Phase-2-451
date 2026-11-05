@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 
 
-
+#=======================BASELINE MODELS (PHASE 1)=======================
 #--------------------------------------------------------------------------------------------
 #Load the data frame
 df = pd.read_parquet("pcap.parquet")
@@ -209,3 +209,53 @@ print("\n--- STEP 8: BASELINE COMPARISON (validation) ---")
 print(results.round(4))
 print("Best baseline:", results.index[0])
 
+#results were very high, however the issue might be that the benign data is 
+#like IoT traffc(UDP, DHCP, ARP and ICMP), while malware is mostly TCP scanning, so the model
+#might be learning the protocol type rather than the actual malware behavior.
+#we will retrain it again this time wihtout protocol columns to see if the model can still learn the malware behavior without the protocol type being a feature.
+
+#=======================PHASE 2: BEHAVIOR, FIXES AND TESTING=======================
+#Testing theories about WHY the baseline scores are so high. Validation set only, the test set stays untouched.
+
+#-----Theory 1: the models mostly learn "mostly TCP = malicious"-----
+#Evidence: the decision tree's top feature is TCP at 0.894 importance, everything else is under 0.04.
+#Concern: the benign data looks like IoT background traffic (UDP, DHCP, ARP, ICMP) and the malware is mostly TCP scanning,
+#so on a real network where normal browsing is also TCP the scores could drop.
+#Test: retrain Random Forest without the protocol columns and see how far the scores drop.
+protocol_cols = ['HTTP', 'HTTPS', 'DNS', 'Telnet', 'SSH', 'TCP', 'UDP', 'DHCP', 'ARP', 'ICMP', 'IGMP', 'IPv', 'LLC'] \
+                + [c for c in X_train.columns if c.startswith('Protocol Type_')]
+tests = {'drop TCP only': ['TCP'],
+         'drop all protocol columns': protocol_cols}
+
+#the first row is the baseline Random Forest from Step 7 (no refit needed)
+rows = {'all features (baseline)': {'features': X_train.shape[1], 'recall': rf_val['recall'], 'precision': rf_val['precision'],
+                                    'f1': rf_val['f1'], 'auc': rf_val['auc'],
+                                    'missed': rf_val['cm'][1, 0], 'false alarms': rf_val['cm'][0, 1]}}
+print("\n--- PHASE 2, THEORY 1: PROTOCOL COLUMNS ---")
+for name, drop in tests.items():
+    cols = [c for c in X_train.columns if c not in drop]
+    rf_t = RandomForestClassifier(class_weight='balanced', random_state=42, n_jobs=-1)
+    rf_t.fit(X_train[cols], y_train)
+    res = evaluate(rf_t, X_val[cols], y_val)
+    rows[name] = {'features': len(cols), 'recall': res['recall'], 'precision': res['precision'],
+                  'f1': res['f1'], 'auc': res['auc'], 'missed': res['cm'][1, 0], 'false alarms': res['cm'][0, 1]}
+    imp = pd.Series(rf_t.feature_importances_, index=cols).sort_values(ascending=False)
+    print(f"\n{name}: top 5 features")
+    print(imp.head(5).round(4))
+print("\nValidation results:")
+print(pd.DataFrame(rows).T.round(4))
+
+#-----Theory 2: the model catches Mirai but misses the smaller families-----
+#Mirai is about 70% of the malicious rows, so a high overall recall could hide weak spots.
+#For the malware families the number below is the recall. For Benign it is the false alarm rate.
+print("\n--- PHASE 2, THEORY 2: RESULTS BY FAMILY (baseline Random Forest, validation) ---")
+fam     = baseline_df.loc[X_val.index, 'MalwareFamily']
+flagged = pd.Series(rf_base.predict(X_val), index=X_val.index)
+print(pd.DataFrame({'family': fam, 'flagged': flagged}).groupby('family')['flagged'].agg(['mean', 'count']).round(4))
+
+#THEORY 1 RESULT: dropping TCP changed nothing (F1 0.9897). Dropping all 17 protocol columns cost only 0.0009 F1
+#(486 missed vs 449). The tree's 0.894 TCP importance came from correlated features (syn_count, syn_flag_number, Header_Length)
+#sharing one signal, not from a protocol shortcut. Keep all 36 features. SYN flags and header length still reveal TCP,
+#so this does not prove the model ignores protocol.
+#THEORY 2 RESULT: recall by family is 98.6% to 100% for every family, so no family is missed. Benign false alarm rate is 3.05%.
+#Remaining risk: lab data vs real traffic (LLM-generated benign, IoT malware). Expect lower live scan scores.
