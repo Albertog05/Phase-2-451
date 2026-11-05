@@ -84,3 +84,128 @@ print(f"Encoded X shape: {X.shape}")
 print("Class balance (rows):")
 print(y.value_counts())
 #------------------------
+#Step 4 TRAIN TEST SPLIT
+#We will use stratified group k fold to split the data into train and test sets.
+#sgkf  = StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=42)
+from sklearn.model_selection import StratifiedGroupKFold
+    
+sgkf = StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=42)
+folds = [test_idx for _, test_idx in sgkf.split(X, y, groups)]
+
+test_idx  = folds[0]                    # 1 fold  -> test
+val_idx   = folds[1]                    # 1 fold  -> validation
+train_idx = np.concatenate(folds[2:])   # 8 folds -> train
+
+X_train, y_train, g_train = X.iloc[train_idx], y.iloc[train_idx], groups.iloc[train_idx]
+X_val,   y_val            = X.iloc[val_idx],   y.iloc[val_idx]
+X_test,  y_test           = X.iloc[test_idx],  y.iloc[test_idx]
+
+print("\n--- STEP 4 ---")
+print(f"Training set size:   {X_train.shape[0]} samples")
+print(f"Validation set size: {X_val.shape[0]} samples")
+print(f"Test set size:       {X_test.shape[0]} samples")
+
+print("\nMalicious share (should be similar in each):")
+print(f"Train: {y_train.mean():.3f} | Val: {y_val.mean():.3f} | Test: {y_test.mean():.3f}")
+
+g_val, g_test = set(groups.iloc[val_idx]), set(groups.iloc[test_idx])
+g_tr = set(g_train)
+print("\nSamples (Hash) shared between sets (all must be 0):")
+print("Train & Val:", len(g_tr & g_val), "| Train & Test:", len(g_tr & g_test), "| Val & Test:", len(g_val & g_test))
+#-----------------------Step 5: Fill Missing Values-------------------------------
+#only the training sets that have missing values are rate and std. 
+from sklearn.impute import SimpleImputer
+print("\n--- STEP 5 ---")
+print("Missing values in training set:")
+print(X_train.isnull().sum()[lambda s: s > 0])
+print("\nMissing values in validation set:")
+print(X_val.isnull().sum()[lambda s: s > 0])
+print("\nMissing values in test set:")
+print(X_test.isnull().sum()[lambda s: s > 0])
+
+#fit on TRAIN only, then apply the same medians to validation and test (no leakage)
+imp     = SimpleImputer(strategy='median')
+X_train = pd.DataFrame(imp.fit_transform(X_train), columns=X_train.columns, index=X_train.index)
+X_val   = pd.DataFrame(imp.transform(X_val),       columns=X_val.columns,   index=X_val.index)
+X_test  = pd.DataFrame(imp.transform(X_test),      columns=X_test.columns,  index=X_test.index)
+
+print("\nMissing values after imputing (train / val / test):")
+print(X_train.isna().sum().sum(), X_val.isna().sum().sum(), X_test.isna().sum().sum())
+#-----------------------Step 6: Feature Scaling-------------------------------
+from sklearn.preprocessing import StandardScaler
+
+std     = StandardScaler()
+X_train = pd.DataFrame(std.fit_transform(X_train), columns=X_train.columns, index=X_train.index)
+X_val   = pd.DataFrame(std.transform(X_val),       columns=X_val.columns,   index=X_val.index)
+X_test  = pd.DataFrame(std.transform(X_test),      columns=X_test.columns,  index=X_test.index)
+
+print("\n--- STEP 6 ---")
+print("Training set after standardizing (mean should be ~0, std ~1):")
+print(round(X_train.describe().loc[['mean', 'std']], 2))
+
+#-----------------------Step 7: Save the processed data-------------------------------
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score, roc_auc_score
+
+def evaluate(model, X_data, y_data):
+    pred  = model.predict(X_data)
+    proba = model.predict_proba(X_data)[:, 1]      # probability of malicious, needed for ROC AUC
+    return {'recall': recall_score(y_data, pred), 'precision': precision_score(y_data, pred),
+            'f1': f1_score(y_data, pred), 'auc': roc_auc_score(y_data, proba),
+            'cm': confusion_matrix(y_data, pred)}
+
+def show(res):
+    print(f"   Recall:    {res['recall']:.4f}")
+    print(f"   Precision: {res['precision']:.4f}")
+    print(f"   F1:        {res['f1']:.4f}")
+    print(f"   ROC AUC:   {res['auc']:.4f}")
+    print(f"   Confusion matrix [[TN FP] [FN TP]]:\n{res['cm']}")
+
+#MODEL 1: Logistic Regression (baseline)
+print("\nMODEL 1: LOGISTIC REGRESSION")
+lr_base = LogisticRegression(class_weight='balanced', max_iter=1000, random_state=42)
+lr_base.fit(X_train, y_train)
+lr_train = evaluate(lr_base, X_train, y_train)
+lr_val   = evaluate(lr_base, X_val, y_val)
+print("\nTraining Results:")
+show(lr_train)
+print("\nValidation Results:")
+show(lr_val)
+
+#MODEL 2: Decision Tree (default depth, so expect it to overfit)
+print("\nMODEL 2: DECISION TREE")
+tree_base = DecisionTreeClassifier(class_weight='balanced', random_state=42)
+tree_base.fit(X_train, y_train)
+tree_train = evaluate(tree_base, X_train, y_train)
+tree_val   = evaluate(tree_base, X_val, y_val)
+print("\nTraining Results:")
+show(tree_train)
+print("\nValidation Results:")
+show(tree_val)
+feat_df = pd.DataFrame({'Feature': X_train.columns, 'Importance': tree_base.feature_importances_}).sort_values('Importance', ascending=False)
+print("\nFeature Importance (top 10):")
+print(feat_df.head(10).round(4))
+
+#MODEL 3: Random Forest (default 100 trees)
+print("\nMODEL 3: RANDOM FOREST")
+rf_base = RandomForestClassifier(class_weight='balanced', random_state=42, n_jobs=-1)
+rf_base.fit(X_train, y_train)
+rf_train = evaluate(rf_base, X_train, y_train)
+rf_val   = evaluate(rf_base, X_val, y_val)
+print("\nTraining Results:")
+show(rf_train)
+print("\nValidation Results:")
+show(rf_val)
+
+#STEP 8: compare the three on VALIDATION, pick by recall then F1
+results = pd.DataFrame({
+    'Logistic Regression': {k: lr_val[k]   for k in ['recall', 'precision', 'f1', 'auc']},
+    'Decision Tree':       {k: tree_val[k] for k in ['recall', 'precision', 'f1', 'auc']},
+    'Random Forest':       {k: rf_val[k]   for k in ['recall', 'precision', 'f1', 'auc']},
+}).T.sort_values(['recall', 'f1'], ascending=False)
+print("\n--- STEP 8: BASELINE COMPARISON (validation) ---")
+print(results.round(4))
+print("Best baseline:", results.index[0])
+
