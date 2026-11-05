@@ -5,21 +5,32 @@ We will be using CIC-YNU-IoTMal Dataset 2026 by Canadian Institue for Cybyersecu
 we installed pcap.parquet whihc ontains processed network traffic captured during malware execetion as a parquet file
 '''
 #------------------------IMPORTS-------------------------------------------------------------------
-import pandas as pd 
+import os
+import joblib
+import pandas as pd
 import numpy as np
+from sklearn.model_selection import StratifiedGroupKFold
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score, roc_auc_score
 
+#folder of this script, so every file is read and saved next to it no matter where the script is run from
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 #=======================BASELINE MODELS (PHASE 1)=======================
 #--------------------------------------------------------------------------------------------
 #Load the data frame
-df = pd.read_parquet("pcap.parquet")
+df = pd.read_parquet(os.path.join(HERE, "pcap.parquet"))
 print(f"Total Amount of Rows loaded: {len(df)} from the pcap.parquet")
 # Exploring the data!!!!! To gather crucial insights on what we are working wiht
 
 #What columns and rows exist??(total of 455,641 rows with 42 colums)
 print(df.head())
 print(df.shape)
-#missing values(missing 433 rows, )
+#missing values(483 in Std and Variance)
 print(df.isna().sum()[lambda s: s > 0])
 print("Duplicate rows:", df.duplicated().sum())#total of 77 dups
 print("\nLabels:")
@@ -78,7 +89,6 @@ y = (y != 'Benign').astype(int) #1 = mal, 0 =benign
 X = X.copy()
 X['Protocol Type'] = X['Protocol Type'].astype(str)  # code, not a quantity
 X = pd.get_dummies(X, columns=['Protocol Type'], dtype=int)
-print("---------STEP 3: Encoding--------")
 print("\n--- STEP 3 ---")
 print(f"Encoded X shape: {X.shape}")
 print("Class balance (rows):")
@@ -86,9 +96,6 @@ print(y.value_counts())
 #------------------------
 #Step 4 TRAIN TEST SPLIT
 #We will use stratified group k fold to split the data into train and test sets.
-#sgkf  = StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=42)
-from sklearn.model_selection import StratifiedGroupKFold
-    
 sgkf = StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=42)
 folds = [test_idx for _, test_idx in sgkf.split(X, y, groups)]
 
@@ -113,8 +120,7 @@ g_tr = set(g_train)
 print("\nSamples (Hash) shared between sets (all must be 0):")
 print("Train & Val:", len(g_tr & g_val), "| Train & Test:", len(g_tr & g_test), "| Val & Test:", len(g_val & g_test))
 #-----------------------Step 5: Fill Missing Values-------------------------------
-#only the training sets that have missing values are rate and std. 
-from sklearn.impute import SimpleImputer
+#only the training sets that have missing values are rate and std.
 print("\n--- STEP 5 ---")
 print("Missing values in training set:")
 print(X_train.isnull().sum()[lambda s: s > 0])
@@ -132,8 +138,6 @@ X_test  = pd.DataFrame(imp.transform(X_test),      columns=X_test.columns,  inde
 print("\nMissing values after imputing (train / val / test):")
 print(X_train.isna().sum().sum(), X_val.isna().sum().sum(), X_test.isna().sum().sum())
 #-----------------------Step 6: Feature Scaling-------------------------------
-from sklearn.preprocessing import StandardScaler
-
 std     = StandardScaler()
 X_train = pd.DataFrame(std.fit_transform(X_train), columns=X_train.columns, index=X_train.index)
 X_val   = pd.DataFrame(std.transform(X_val),       columns=X_val.columns,   index=X_val.index)
@@ -143,12 +147,12 @@ print("\n--- STEP 6 ---")
 print("Training set after standardizing (mean should be ~0, std ~1):")
 print(round(X_train.describe().loc[['mean', 'std']], 2))
 
-#-----------------------Step 7: Save the processed data-------------------------------
-from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score, roc_auc_score
-
+#save the processed splits so tunning.py can load them
+joblib.dump({'X_train': X_train, 'y_train': y_train, 'g_train': g_train,
+             'X_val': X_val, 'y_val': y_val, 'X_test': X_test, 'y_test': y_test},
+            os.path.join(HERE, 'splits.joblib'))
+print("Saved splits.joblib")
+#-----------------------Step 7: Fit the baseline models-------------------------------
 def evaluate(model, X_data, y_data):
     pred  = model.predict(X_data)
     proba = model.predict_proba(X_data)[:, 1]      # probability of malicious, needed for ROC AUC
@@ -209,7 +213,7 @@ print("\n--- STEP 8: BASELINE COMPARISON (validation) ---")
 print(results.round(4))
 print("Best baseline:", results.index[0])
 
-#results were very high, however the issue might be that the benign data is 
+#results were very high, however the issue might be that the benign data is
 #like IoT traffc(UDP, DHCP, ARP and ICMP), while malware is mostly TCP scanning, so the model
 #might be learning the protocol type rather than the actual malware behavior.
 #we will retrain it again this time wihtout protocol columns to see if the model can still learn the malware behavior without the protocol type being a feature.
@@ -239,9 +243,9 @@ for name, drop in tests.items():
     res = evaluate(rf_t, X_val[cols], y_val)
     rows[name] = {'features': len(cols), 'recall': res['recall'], 'precision': res['precision'],
                   'f1': res['f1'], 'auc': res['auc'], 'missed': res['cm'][1, 0], 'false alarms': res['cm'][0, 1]}
-    imp = pd.Series(rf_t.feature_importances_, index=cols).sort_values(ascending=False)
+    feat_imp = pd.Series(rf_t.feature_importances_, index=cols).sort_values(ascending=False)
     print(f"\n{name}: top 5 features")
-    print(imp.head(5).round(4))
+    print(feat_imp.head(5).round(4))
 print("\nValidation results:")
 print(pd.DataFrame(rows).T.round(4))
 
