@@ -1,0 +1,32 @@
+
+
+1-9 Pipelines
+1.Data wrangling
+in this case we create meta data and clean the data, we extract what data we will be using
+2. Selecting features: 
+we select the features and our target
+3. Encoding categorical data either ordinal or one hot encoded:
+In this case since we are determining we are going to be using one hot encoding
+4: train test validate:
+Split teh data into train validate and test
+70/15/ 15 split
+5. Imputation:
+Here we handle missing values on the training, validation and test sets
+To handle imputation we can either fill it in using the mean, or if we have too many we can drop . 
+6.  standardize/normalize data
+We can use standardscaler and fit.transform 
+
+7 and 8:
+Here we do our models
+Training prediction, validation prediction,
+Fit the model on the training set
+Predict on the validation set
+Print the results (  Sensitivity , Precision, F1, ROC/AUC, Confusion Matric, Accuracy)
+
+Tuning will be done on separate files independently. 
+__________________________________________________________________________
+
+User Interface:
+Database:
+
+
