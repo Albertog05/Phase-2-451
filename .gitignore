@@ -4,3 +4,5 @@ best_model.joblib
 README.pdf
 .venv/
 __pycache__/
+*.pcap
+ui/backend/scans.db
