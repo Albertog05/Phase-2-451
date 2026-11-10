@@ -12,7 +12,7 @@ Split teh data into train validate and test
 70/15/ 15 split
 5. Imputation:
 Here we handle missing values on the training, validation and test sets
-To handle imputation we can either fill it in using the mean, or if we have too many we can drop . 
+To handle imputation we can either fill it in using the mean, or if we have too many we can drop. 
 6.  standardize/normalize data
 We can use standardscaler and fit.transform 
 
@@ -26,7 +26,15 @@ Print the results (  Sensitivity , Precision, F1, ROC/AUC, Confusion Matric, Acc
 Tuning will be done on separate files independently. 
 __________________________________________________________________________
 
-User Interface:
+User Interface: 
+Web UI styled like a speed test site. The user picks how many traffic
+windows to scan with a slider (fixed min and max), presses SCAN, and sees the summary
+(records scanned, duration, malicious found, status). A Results tab lists previous scans.
+A Flask backend loads best_model.joblib, scores the records with the saved
+threshold, and exposes /api/scan and /api/history.
+For now the records come from the saved test set. Live traffic will replace
+get_records() in ui/backend/data_source.py.
+
 Database:
 
 
