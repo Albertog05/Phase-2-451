@@ -152,6 +152,8 @@ joblib.dump({'X_train': X_train, 'y_train': y_train, 'g_train': g_train,
              'X_val': X_val, 'y_val': y_val, 'X_test': X_test, 'y_test': y_test},
             os.path.join(HERE, 'splits.joblib'))
 print("Saved splits.joblib")
+joblib.dump({'imputer': imp, 'scaler': std, 'columns': list(X_train.columns)}, os.path.join(HERE, 'preprocess.joblib'))
+print("Saved preprocess.joblib")
 #-----------------------Step 7: Fit the baseline models-------------------------------
 def evaluate(model, X_data, y_data):
     pred  = model.predict(X_data)
