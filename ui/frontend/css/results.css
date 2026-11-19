@@ -1,0 +1,4 @@
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:36px}
+.stat{background:var(--card);border:1px solid var(--line);border-top:2px solid var(--c2);border-radius:14px;padding:16px}
+.stat small{display:block;color:var(--mut);font-size:12px;margin-bottom:6px}
+.stat span{font-size:22px;font-weight:600}
