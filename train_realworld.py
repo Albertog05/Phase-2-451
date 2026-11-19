@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 from sklearn.base import clone
 from sklearn.metrics import recall_score, precision_score, f1_score
-from pcap_features import pcap_to_rows, scale_rows
+from WS_pcap import pcap_to_rows, scale_rows
 
 HERE  = os.path.dirname(os.path.abspath(__file__))
 args  = [a for a in sys.argv[1:] if not a.startswith('--')]

@@ -1,5 +1,5 @@
 #scan_pcap.py
-#Alberto Gaspar
+
 #CECS 451 Phase 2: runs a saved model on a raw PCAP.
 #Usage:  python scan_pcap.py real_benign.pcap                                   (Model A)
 #        python scan_pcap.py other_day.pcap best_model_realworld.joblib         (Model B)
@@ -9,7 +9,7 @@ import os
 import sys
 import joblib
 import pandas as pd
-from pcap_features import pcap_to_rows
+from WS_pcap import pcap_to_rows
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 path = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, 'real_benign.pcap')

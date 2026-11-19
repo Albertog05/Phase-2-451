@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from sklearn.base import clone
 from sklearn.metrics import recall_score, f1_score
-from pcap_features import pcap_to_rows, scale_rows
+from WS_pcap import pcap_to_rows, scale_rows
 
 DROP    = ['Time_To_Live', 'Rate', 'IAT']   #features that depend on the device/network, or that are my estimates
 ALERT_N = 10   #look at the last N windows ...
