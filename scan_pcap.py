@@ -1,9 +1,7 @@
-#scan_pcap.py
-
 #CECS 451 Phase 2: runs a saved model on a raw PCAP.
-#Usage:  python scan_pcap.py real_benign.pcap                                   (Model A)
-#        python scan_pcap.py other_day.pcap best_model_realworld.joblib         (Model B)
-#Needs best_model.joblib (tunning.py + step9.py) and preprocess.joblib (cecs451proj.py).
+#Usage:  python scan_pcap.py real_benign.pcap     (Model A)
+#python scan_pcap.py other_day.pcap best_model_realworld.joblib  (Model B)
+#Needs best_model.joblib (tuning.py + final_test.py) and preprocess.joblib from pipeline_models.py).
 
 import os
 import sys
@@ -62,4 +60,4 @@ out = df.copy()
 out['malware probability'] = proba
 out['verdict'] = ['MALWARE' if f else 'Benign' for f in flag]
 out.to_csv(os.path.join(HERE, 'real_scan_results.csv'), index=False)
-print("\nSaved real_scan_results.csv")
+print("\nSaved real_scan_results.csv") #this is just for our own testing measures not commited
