@@ -8,7 +8,7 @@ import model_service
 
 app = Flask(__name__, static_folder="../frontend", static_url_path="")
 
-MIN_RECORDS, MAX_RECORDS = 100, 10000  # keep in sync with frontend/js/config.js
+MIN_RECORDS, MAX_RECORDS = 100, 2000
 
 db.init_db()
 data_source.load_test_set()
