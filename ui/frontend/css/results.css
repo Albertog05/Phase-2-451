@@ -1,4 +1,10 @@
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:36px}
+.stats{margin-top:36px;text-align:left}
+.stats h3{margin:28px 0 8px;font-size:15px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
 .stat{background:var(--card);border:1px solid var(--line);border-top:2px solid var(--c2);border-radius:14px;padding:16px}
 .stat small{display:block;color:var(--mut);font-size:12px;margin-bottom:6px}
 .stat span{font-size:22px;font-weight:600}
+.feats{list-style:none;padding:0;margin:0}
+.feats li{display:grid;grid-template-columns:minmax(120px,200px) 1fr 52px;gap:12px;align-items:center;padding:6px 0;font-size:14px}
+.feats i{display:block;height:8px;border-radius:4px;background:linear-gradient(90deg,var(--c1),var(--c2))}
+.feats b{font-weight:500;color:var(--mut);text-align:right}

@@ -9,3 +9,4 @@
 #go:hover{background:var(--card)}
 #go:disabled{cursor:default;font-size:22px;letter-spacing:0}
 .err{color:#ef4444;margin:20px 0 0;font-size:14px}
+#step{min-height:1.4em}

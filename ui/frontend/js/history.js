@@ -19,7 +19,7 @@ async function renderHistory() {
     return `<tr><td>${date}</td><td>${dash(r.records)}</td><td>${r.seconds.toFixed(2)}s</td><td>${dash(r.malicious)}</td><td>${dash(r.missed)}</td><td>${dash(r.false_alarms)}</td><td>${r.status}</td></tr>`;
   }).join("");
   el.innerHTML =
-    '<div class="scroll"><table><tr><th>DATE</th><th>RECORDS</th><th>DURATION</th><th>MALICIOUS</th><th>MISSED</th><th>FALSE ALARMS</th><th>STATUS</th></tr>' +
+    '<div class="scroll"><table><tr><th>DATE</th><th>WINDOWS</th><th>DURATION</th><th>FLAGGED</th><th>MISSED</th><th>FALSE ALARMS</th><th>STATUS</th></tr>' +
     rows + '</table></div><p><button class="sm" onclick="clearHistory()">Clear history</button></p>';
 }
 

@@ -1,4 +1,5 @@
 // SCAN button + progress ring.
+const STEPS = ["Reading traffic windows...", "Checking packet sizes...", "Checking TCP flags...", "Checking packet rates...", "Scoring with the model..."];
 const RING = 628; // circle circumference
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -28,6 +29,7 @@ function initScan() {
     const iv = setInterval(() => {
       const p = Math.min(100, ((Date.now() - t0) / total) * 100);
       setProgress(p);
+      $("step").textContent = STEPS[Math.min(STEPS.length - 1, Math.floor((p / 100) * STEPS.length))];
       go.textContent = Math.round((n * p) / 100).toLocaleString();
     }, 50);
     const request = runScan(n).then((r) => ({ r }), (e) => ({ e }));
@@ -41,6 +43,7 @@ function initScan() {
     }
     setProgress(0);
     go.textContent = "SCAN";
+    $("step").textContent = "";
     go.disabled = false;
     $("rng").disabled = false;
     running = false;

@@ -18,11 +18,12 @@
   </div>
   <nav>
     <a href="#scan" id="n-scan">Scan</a>
-    <a href="#history" id="n-history">Results</a>
+    <a href="#history" id="n-history">History</a>
   </nav>
 </header>
 <main>
   <section class="view" id="v-scan">
+    <p class="notice">Preview: this demo replays stored sandbox traffic through our trained model. It does not scan your computer.</p>
     <p class="tag">Scan network traffic for malicious activity</p>
     <div class="ring">
       <svg viewBox="0 0 220 220">
@@ -32,6 +33,7 @@
       </svg>
       <button id="go">SCAN</button>
     </div>
+    <p class="tag" id="step"></p>
     <div class="slider">
       <label><span>Data to scan</span><b id="amt"></b></label>
       <input type="range" id="rng">
