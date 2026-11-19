@@ -1,4 +1,5 @@
-"""Where the records to scan come from.
+"""
+Where the records to scan come from.
 
 NOW: random rows from the saved test set (splits.joblib), which have true labels.
 LATER (live traffic): replace get_records() so it turns captured packets into the same

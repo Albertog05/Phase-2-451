@@ -1,4 +1,6 @@
-"""Loads the winning model and scores records with the saved threshold."""
+"""
+Loads the winning model and scores records with the saved threshold.
+"""
 import time
 import joblib
 from data_source import ROOT, get_records

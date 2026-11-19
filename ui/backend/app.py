@@ -1,6 +1,5 @@
-"""Flask API for the Network Malware Scanner UI.
-
-Run from the repo root:  python ui/backend/app.py   then open http://localhost:5000
+"""
+Flask API for the Network Malware Scanner UI.
 """
 from flask import Flask, jsonify, request, send_from_directory
 import data_source

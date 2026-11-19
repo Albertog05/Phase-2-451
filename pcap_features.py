@@ -94,7 +94,9 @@ def pcap_to_rows(path):
             pk.append(_parse(buf, dlt))
             ts.append(t)
             if len(pk) == WINDOW:
-                rows.append(_row(pk, ts))
+                rrow = _row(pk, ts)
+                row['window_start'] = float(ts[0])
+                rows.append(row)
                 pk, ts = [], []
     return pd.DataFrame(rows), len(pk)
 
