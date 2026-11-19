@@ -1,7 +1,5 @@
-#tunning.py
-#Alberto Gaspar
-#CECS 451 Phase 2: tuning the three models (Logistic Regression, Decision Tree, Random Forest)
-#Needs splits.joblib, which cecs451proj.py saves right after Step 6 (run that file first)
+#Here we tune the model using different hyperparameter settings. The best one is refit on the full training set and saved for later use.
+
 #Idea: try different settings for each model, compare against the baseline, keep the best one
 
 #1 Logistic Regression
@@ -22,7 +20,7 @@
 import os, warnings
 os.environ["PYTHONWARNINGS"] = "ignore"   # also reaches the parallel workers
 warnings.filterwarnings("ignore")
-#------------------------IMPORTS-------------------------------------------------------------------
+#----------------IMPORTS---------------------------------
 import os
 import time
 import joblib
@@ -39,10 +37,10 @@ from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 #------------------------SETTINGS-------------------------------------------------------------------
-CHOOSE_K_ONLY = False   #True = only print the K table and stop. After choosing K, set this to False and run again
-K             = 5      #set this after reading the K table
+CHOOSE_K_ONLY = False  #True = only print the K table and stop. After choosing K, set this to False and run again
+K= 5    #set this after reading the K table
 
-#------------------------SECTION 0: LOAD DATA AND CHOOSE THE NUMBER OF FOLDS-----------------------
+#-----SECTION 0: LOAD DATA AND CHOOSE THE NUMBER OF FOLDS-----------------------
 d = joblib.load(os.path.join(HERE, 'splits.joblib'))
 X_train, y_train, g_train = d['X_train'], d['y_train'], d['g_train']
 X_val,   y_val            = d['X_val'],   d['y_val']
@@ -66,12 +64,12 @@ if CHOOSE_K_ONLY:
 
 cv = StratifiedGroupKFold(n_splits=K, shuffle=True, random_state=42)   #same folds for every model
 
-#baseline validation scores from Step 8 of cecs451proj.py (default settings, random_state=42)
+#baseline validation scores from Step 8 of pipeline_model.py (default settings, random_state=42)
 baseline = {'Logistic Regression': {'recall': 0.9628, 'precision': 0.9986, 'f1': 0.9804, 'auc': 0.9962, 'missed': 1269, 'false alarms': 45},
             'Decision Tree':       {'recall': 0.9865, 'precision': 0.9883, 'f1': 0.9874, 'auc': 0.9692, 'missed': 460,  'false alarms': 398},
             'Random Forest':       {'recall': 0.9868, 'precision': 0.9926, 'f1': 0.9897, 'auc': 0.9969, 'missed': 449,  'false alarms': 252}}
 
-#------------------------HELPERS (same metrics as Step 7 and 8)------------------------------------
+#--Helpers for easy result(same metrics as Step 7 and 8)------------------------------------
 def evaluate(model, X_data, y_data):
     pred  = model.predict(X_data)
     proba = model.predict_proba(X_data)[:, 1]
@@ -87,7 +85,7 @@ def show(res):
     print(f"   Confusion matrix [[TN FP] [FN TP]]:\n{res['cm']}")
 
 def run_search(name, search):
-    #1. search on the subsample with grouped folds, 2. refit the best settings on the FULL training set, 3. score on validation
+    #First search on the subsample with grouped folds, 2. refit the best settings on the FULL training set, 3. score on validation
     print(f"\n--- {name}: SEARCH ({K} folds) ---")
     start = time.time()
     search.fit(X_sub, y_sub, groups=g_sub)
@@ -103,18 +101,17 @@ def run_search(name, search):
     print(f"\n{name} (tuned, refit on the full training set), validation results:")
     show(res)
     return final, res
-
 models  = {}
 results = {}
 
 #------------------------SECTION 1: LOGISTIC REGRESSION-------------------------------------------
-#liblinear is the solver that supports both penalties. 5 x 2 = 10 combinations, all tried
+#liblinear is the solver that supports both penalties. 4 x 2 =8 combinations
 lr_search = GridSearchCV(LogisticRegression(solver='liblinear', class_weight='balanced', max_iter=200, tol=1e-3, random_state=42),
                          param_grid={'C': [0.01, 0.1, 1, 10], 'penalty': ['l1', 'l2']},
                          cv=cv, scoring='f1', n_jobs=1, verbose=3)
 models['Logistic Regression'], results['Logistic Regression'] = run_search('LOGISTIC REGRESSION', lr_search)
 
-#------------------------SECTION 2: DECISION TREE-------------------------------------------------
+#-------------------SECTION 2: DECISION TREE-------------------------------------------------
 #the baseline tree memorized the training set (train 1.0000, validation AUC 0.9692), so these settings limit how much it can memorize
 #5 x 4 x 2 = 40 combinations, all tried
 tree_search = GridSearchCV(DecisionTreeClassifier(class_weight='balanced', random_state=42),
@@ -124,7 +121,7 @@ tree_search = GridSearchCV(DecisionTreeClassifier(class_weight='balanced', rando
                            cv=cv, scoring='f1', n_jobs=-1)
 models['Decision Tree'], results['Decision Tree'] = run_search('DECISION TREE', tree_search)
 
-#------------------------SECTION 3: RANDOM FOREST-------------------------------------------------
+#--------SECTION 3: RANDOM FOREST---------------------------------
 #288 possible combinations is too many for a forest, so RandomizedSearchCV tries 15 random ones
 #if this takes too long, lower n_iter to 8
 rf_search = RandomizedSearchCV(RandomForestClassifier(random_state=42, n_jobs=-1),
@@ -163,7 +160,7 @@ for t in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]:
     cm   = confusion_matrix(y_val, pred)
     print(f"{t:<10} {recall_score(y_val, pred):.4f}  {precision_score(y_val, pred):.4f}     {f1_score(y_val, pred):.4f}  {cm[1, 0]:<7} {cm[0, 1]}")
 
-#------------------------SAVE-----------------------------------------------------------------------
+#-------------SAVE----------------
 compare.to_csv(os.path.join(HERE, 'tuning_results.csv'))
 joblib.dump({'model': winner, 'name': best_name, 'columns': list(X_train.columns)}, os.path.join(HERE, 'best_model.joblib'))
 print("\nSaved tuning_results.csv and best_model.joblib")

@@ -1,8 +1,10 @@
 pcap.parquet
 splits.joblib
-best_model.joblib
 README.pdf
 .venv/
 __pycache__/
 *.pcap
+*.pcapng
 ui/backend/scans.db
+real_scan_results.csv
+best_model_c.joblib 

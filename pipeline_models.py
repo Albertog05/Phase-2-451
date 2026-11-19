@@ -1,10 +1,10 @@
 
-'''pip install pyarrow
+'''
 The first portion of our project is to get a dataset that will be used to train and develop our ai model
 We will be using CIC-YNU-IoTMal Dataset 2026 by Canadian Institue for Cybyersecurity
 we installed pcap.parquet whihc ontains processed network traffic captured during malware execetion as a parquet file
 '''
-#------------------------IMPORTS-------------------------------------------------------------------
+#------------------------IMPORTS----------------------------------------------------
 import os
 import joblib
 import pandas as pd
@@ -20,7 +20,7 @@ from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_
 #folder of this script, so every file is read and saved next to it no matter where the script is run from
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-#=======================BASELINE MODELS (PHASE 1)=======================
+#Phase 1 : Models/Pipeline
 #--------------------------------------------------------------------------------------------
 #Load the data frame
 df = pd.read_parquet(os.path.join(HERE, "pcap.parquet"))
@@ -37,7 +37,7 @@ print("\nLabels:")
 print(df['MalwareFamily'].value_counts())
 print("\nProtocol Type values:", df['Protocol Type'].value_counts().to_dict())#encoded values
 
-#CREATE METADATA, to orgnaize the information
+#Create the METADATA, to orgnaize the information
 not_features = {
     'Hash':          ('group_id',     'sample ID, keeps a sample in one split'),
     'MalwareFamily': ('label_source', 'source of the target'),
@@ -119,7 +119,7 @@ g_val, g_test = set(groups.iloc[val_idx]), set(groups.iloc[test_idx])
 g_tr = set(g_train)
 print("\nSamples (Hash) shared between sets (all must be 0):")
 print("Train & Val:", len(g_tr & g_val), "| Train & Test:", len(g_tr & g_test), "| Val & Test:", len(g_val & g_test))
-#-----------------------Step 5: Fill Missing Values-------------------------------
+#---Step 5: Data imputation for missing values-------------------------------
 #only the training sets that have missing values are rate and std.
 print("\n--- STEP 5 ---")
 print("Missing values in training set:")
@@ -129,13 +129,13 @@ print(X_val.isnull().sum()[lambda s: s > 0])
 print("\nMissing values in test set:")
 print(X_test.isnull().sum()[lambda s: s > 0])
 
-#fit on TRAIN only, then apply the same medians to validation and test (no leakage)
+#fit on TRAIN only, then apply the same medians to validation and test 
 imp     = SimpleImputer(strategy='median')
 X_train = pd.DataFrame(imp.fit_transform(X_train), columns=X_train.columns, index=X_train.index)
 X_val   = pd.DataFrame(imp.transform(X_val),       columns=X_val.columns,   index=X_val.index)
 X_test  = pd.DataFrame(imp.transform(X_test),      columns=X_test.columns,  index=X_test.index)
 
-print("\nMissing values after imputing (train / val / test):")
+print("\nMissing values after imputing (train | val | test): ")
 print(X_train.isna().sum().sum(), X_val.isna().sum().sum(), X_test.isna().sum().sum())
 #-----------------------Step 6: Feature Scaling-------------------------------
 std     = StandardScaler()
@@ -143,11 +143,11 @@ X_train = pd.DataFrame(std.fit_transform(X_train), columns=X_train.columns, inde
 X_val   = pd.DataFrame(std.transform(X_val),       columns=X_val.columns,   index=X_val.index)
 X_test  = pd.DataFrame(std.transform(X_test),      columns=X_test.columns,  index=X_test.index)
 
-print("\n--- STEP 6 ---")
+print("\n--- STEP 6: Feature Scaling ---")
 print("Training set after standardizing (mean should be ~0, std ~1):")
 print(round(X_train.describe().loc[['mean', 'std']], 2))
 
-#save the processed splits so tunning.py can load them
+#Save the splits to be used later for testing and evaluation!
 joblib.dump({'X_train': X_train, 'y_train': y_train, 'g_train': g_train,
              'X_val': X_val, 'y_val': y_val, 'X_test': X_test, 'y_test': y_test},
             os.path.join(HERE, 'splits.joblib'))
@@ -220,24 +220,23 @@ print("Best baseline:", results.index[0])
 #might be learning the protocol type rather than the actual malware behavior.
 #we will retrain it again this time wihtout protocol columns to see if the model can still learn the malware behavior without the protocol type being a feature.
 
-#=======================PHASE 2: BEHAVIOR, FIXES AND TESTING=======================
-#Testing theories about WHY the baseline scores are so high. Validation set only, the test set stays untouched.
+#Stage 2: Understanding results and testing theories 
+#Testing theories about WHY the baseline scores are so high.
 
-#-----Theory 1: the models mostly learn "mostly TCP = malicious"-----
+#Theory 1: the models mostly learn "mostly TCP = malicious"-----
 #Evidence: the decision tree's top feature is TCP at 0.894 importance, everything else is under 0.04.
 #Concern: the benign data looks like IoT background traffic (UDP, DHCP, ARP, ICMP) and the malware is mostly TCP scanning,
-#so on a real network where normal browsing is also TCP the scores could drop.
 #Test: retrain Random Forest without the protocol columns and see how far the scores drop.
 protocol_cols = ['HTTP', 'HTTPS', 'DNS', 'Telnet', 'SSH', 'TCP', 'UDP', 'DHCP', 'ARP', 'ICMP', 'IGMP', 'IPv', 'LLC'] \
                 + [c for c in X_train.columns if c.startswith('Protocol Type_')]
 tests = {'drop TCP only': ['TCP'],
          'drop all protocol columns': protocol_cols}
 
-#the first row is the baseline Random Forest from Step 7 (no refit needed)
+#the first row is the baseline Random Forest from Step 7
 rows = {'all features (baseline)': {'features': X_train.shape[1], 'recall': rf_val['recall'], 'precision': rf_val['precision'],
                                     'f1': rf_val['f1'], 'auc': rf_val['auc'],
                                     'missed': rf_val['cm'][1, 0], 'false alarms': rf_val['cm'][0, 1]}}
-print("\n--- PHASE 2, THEORY 1: PROTOCOL COLUMNS ---")
+print("\n---Stage 2, THEORY 1: PROTOCOL COLUMNS ---")
 for name, drop in tests.items():
     cols = [c for c in X_train.columns if c not in drop]
     rf_t = RandomForestClassifier(class_weight='balanced', random_state=42, n_jobs=-1)
@@ -251,7 +250,7 @@ for name, drop in tests.items():
 print("\nValidation results:")
 print(pd.DataFrame(rows).T.round(4))
 
-#-----Theory 2: the model catches Mirai but misses the smaller families-----
+#Theory 2 : the model catches Mirai but misses the smaller families-----
 #Mirai is about 70% of the malicious rows, so a high overall recall could hide weak spots.
 #For the malware families the number below is the recall. For Benign it is the false alarm rate.
 print("\n--- PHASE 2, THEORY 2: RESULTS BY FAMILY (baseline Random Forest, validation) ---")

@@ -1,9 +1,7 @@
-#pcap_features.py
-#Alberto Gaspar
-#CECS 451 Phase 2: turns a raw PCAP into the same kind of rows as pcap.parquet (one row = 10 packets in a row).
+#WS_pcap.py turns a raw PCAP into the same kind of rows as pcap.parquet (one row = 10 packets in a row).
 #The dataset does not publish its feature definitions, so these are decoded from the rows in pcap.parquet.
 #Checked against the rows:  Header_Length, TTL, flag_number/count, protocol fractions, packet size stats, Variance (n-1).
-#GUESSED (not confirmed):   Rate (= 1 / IAT), IAT (mean gap between packets inside the window), LLC (= IPv), ICMPv6 counted as ICMP.
+#GUESSED (not confirmed): Rate (= 1 / IAT), IAT (mean gap between packets inside the window), LLC (= IPv), ICMPv6 counted as ICMP.
 
 import dpkt
 import numpy as np
@@ -15,7 +13,7 @@ WINDOW = 10
 def _open(f):
     try:
         return dpkt.pcap.Reader(f)
-    except ValueError:        #Wireshark pcapng file
+    except ValueError:    #Wireshark pcapng file
         f.seek(0)
         return dpkt.pcapng.Reader(f)
 
@@ -94,7 +92,9 @@ def pcap_to_rows(path):
             pk.append(_parse(buf, dlt))
             ts.append(t)
             if len(pk) == WINDOW:
-                rows.append(_row(pk, ts))
+                row = _row(pk, ts)
+                row['window_start'] = float(ts[0])
+                rows.append(row)
                 pk, ts = [], []
     return pd.DataFrame(rows), len(pk)
 
