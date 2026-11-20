@@ -345,7 +345,7 @@ Not needed for the demo. Install `requirements-training.txt` instead of `require
 - Only analyze capture files. Do not run malware to produce traffic.
 - Do not store passwords or API keys in the repository.
 
-**AI assistance.** Parts of the code and documentation were written with the help of an AI assistant (Claude), which the course allows. The team reviewed and tested the work.
+**AI assistance.** Parts of the code and documentation were written with the help of AI. Everything was peer-reviewed and cleared by our team.
 
 ---
 
