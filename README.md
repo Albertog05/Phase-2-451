@@ -86,7 +86,7 @@ The demo needs no training, no dataset download and no internet connection after
 
 ### Requirements
 
-- Python 3.10 or newer
+- Python 3.11 or newer
 - This repository, with `best_model.joblib`, `demo_samples.csv` and `requirements.txt` in the top folder (next to this README)
 
 ### Install
