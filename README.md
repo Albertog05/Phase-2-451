@@ -1,47 +1,158 @@
-# Malware Traffic Detector
+# Network Malware Scanner
 
-CECS 451 term project, Team 21.
+**CECS 451 Artificial Intelligence, Term Project, Team 21**
 
-An AI tool that scores network traffic for malware-like behavior. A model looks at windows of 10 packets and gives each window a probability of being malicious. The app shows a ranked list of windows, raises an alert when several nearby windows are flagged, and exports a CSV report.
+An AI-powered tool that analyzes network traffic and flags activity that resembles malware behavior.
 
-**Scope, in one paragraph.** The models are trained on IoT malware (mostly Mirai) recorded in a sandbox (CIC-YNU-IoTMal), plus benign traffic. This prototype shows that the method works on that data and can be run on a captured PCAP. It is not validated on other malware families, other networks, or enterprise attacks such as ransomware or credential theft. See [Limitations](#limitations).
+---
 
-## Status
+## Table of Contents
 
-| Part | Status |
+1. [Overview](#1-overview)
+2. [The Problem and Our Solution](#2-the-problem-and-our-solution)
+3. [How the AI Works](#3-how-the-ai-works)
+4. [Running the Demo](#4-running-the-demo)
+5. [Using the Application](#5-using-the-application)
+6. [Model Performance](#6-model-performance)
+7. [System Architecture](#7-system-architecture)
+8. [Repository Contents](#8-repository-contents)
+9. [Retraining the Models](#9-retraining-the-models)
+10. [Scope and Limitations](#10-scope-and-limitations)
+11. [Responsible Use](#11-responsible-use)
+
+---
+
+## 1. Overview
+
+Network Malware Scanner is a prototype that scores network traffic for malicious behavior. A machine learning model reads short windows of network traffic (10 packets each) and assigns every window a probability of being malicious. The web application presents the result as a speed-test style scan: the user chooses how much traffic to analyze, presses **SCAN**, and receives a summary, a ranked list of the most suspicious windows, the features the model relies on, and a downloadable CSV report. Earlier scans are kept in a History tab.
+
+**What this prototype demonstrates:** an end-to-end AI pipeline, from data preparation and model selection to a working web interface, applied to malware detection.
+
+**Demo data:** the web application replays a stored sample of labeled traffic windows recorded in a malware sandbox. It does not capture or analyze live traffic from the computer it runs on.
+
+---
+
+## 2. The Problem and Our Solution
+
+### The problem
+
+Malware that reaches a network device usually has to communicate: it scans for other devices, spreads, and contacts remote servers. This activity leaves a pattern in network traffic even when the malicious file itself is hidden. Internet-connected (IoT) devices are especially exposed, because they often have limited built-in security and are rarely monitored by their owners.
+
+### Our solution
+
+We apply machine learning to the traffic itself. Instead of matching traffic against a fixed list of known attack signatures, the model learns what malicious traffic looks like from labeled examples, such as unusual connection-request patterns, packet sizes and timing. This lets it score traffic it has not seen before, as long as the behavior resembles what it learned.
+
+### Who it is for
+
+- Small networks and home users who want a simple way to check whether traffic looks suspicious
+- Students and analysts who want to see how an AI-based detector scores traffic and why
+
+### How it compares with existing approaches
+
+| Approach | Example | How it detects | Where our tool fits |
+|---|---|---|---|
+| Signature-based intrusion detection | Snort | Matches traffic against rules for known attacks | Our model learns patterns from data, so it is not limited to hand-written rules |
+| Commercial AI network defense | Darktrace | Learns a network's normal behavior and flags deviations | Our tool is a small, transparent prototype: one open model, visible scores and visible important features |
+
+Our prototype is not a replacement for these systems. It is a focused demonstration of the machine learning method behind AI-based traffic analysis.
+
+---
+
+## 3. How the AI Works
+
+```
+Traffic windows  ->  Features  ->  Impute + scale  ->  Random Forest  ->  Malware probability  ->  Verdict
+ (10 packets)        (36 values)                                                                (flag if >= threshold)
+```
+
+**Data.** We use the CIC-YNU-IoTMal dataset from the Canadian Institute for Cybersecurity: processed network traffic captured while malware ran in a sandbox, plus benign traffic. Each row describes one window of 10 packets.
+
+**Features (36).** Header length, time to live, packet rate, TCP flag fields and counts, protocol fractions (HTTP, HTTPS, DNS, TCP, UDP, ARP, ICMP and others), packet size statistics (minimum, maximum, average, standard deviation), inter-arrival time, and the dominant protocol type (one-hot encoded).
+
+**Method.**
+1. Clean the data: remove unknown labels, duplicates and columns that are constant or exact copies of other columns.
+2. Split by malware sample (not by row), so a sample never appears in both training and test data. This prevents the model from being scored on traffic it effectively memorized.
+3. Fill missing values with the training median and standardize the features, using statistics from the training set only.
+4. Train three models (Logistic Regression, Decision Tree, Random Forest), tune each with grouped cross-validation, and compare them on a validation set.
+5. Choose the Random Forest, select a decision threshold (0.2) on the validation set to favor catching malware, and score the held-out test set exactly once.
+
+**Output.** Each window receives a score from 0 to 100. Windows at or above the threshold are flagged as malware and labeled Low, Medium or High severity by score.
+
+---
+
+## 4. Running the Demo
+
+The demo needs no training, no dataset download and no internet connection after installation. It takes about five minutes.
+
+### Requirements
+
+- Python 3.10 or newer
+- This repository, with `best_model.joblib`, `demo_samples.csv` and `requirements.txt` in the top folder (next to this README)
+
+### Install
+
+Open a terminal in the top folder of the repository.
+
+macOS or Linux:
+
+```
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Windows (PowerShell):
+
+```
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### Start the application
+
+```
+python ui/backend/app.py
+```
+
+The terminal should print `Model: {'name': 'Random Forest', 'threshold': 0.2}` and `Running on http://127.0.0.1:5000`. Leave it running.
+
+### Open it
+
+Go to **http://127.0.0.1:5000** in a web browser. Press `Ctrl+C` in the terminal to stop the application.
+
+### Troubleshooting
+
+| Problem | Fix |
 |---|---|
-| Data pipeline, baseline models, tuning, final test scoring (`cecs451proj.py`, `tunning.py`, `step9.py`) | Done |
-| Model A (sandbox only), Model B (adds real benign traffic), Model C (also drops device dependent features) | Done |
-| Demo mode in the web app: replays held-out sandbox test data with true labels | Done |
-| Real-traffic mode: upload a PCAP, get ranked windows, alerts and a CSV report (`/pcap`) | Done. Checked with the saved models and synthetic captures. Real-capture results: [TEAM: add the table from `evaluate_captures.py`] |
-| Generalization checks: `family_holdout.py`, `feature_parity.py`, `evaluate_captures.py` | Scripts done. Results: [TEAM: add after running them] |
-| Database layer (`database/`) | Done and tested on its own. Connected to the UI: [TEAM: yes or no] |
-| Live capture started from inside the app | **Not implemented.** Capture with Wireshark or tcpdump, then upload the file |
+| Port 5000 is already in use, or the page does not load (common on macOS, where AirPlay Receiver uses port 5000) | Turn off AirPlay Receiver in System Settings > General > AirDrop & Handoff, or change the last line of `ui/backend/app.py` to `app.run(port=5001, debug=False)` and open `http://127.0.0.1:5001` |
+| `FileNotFoundError` for `best_model.joblib` or `demo_samples.csv` | Both files must be in the repository's top folder. To keep them elsewhere, set the `MODEL_DIR` environment variable to that folder |
+| `ModuleNotFoundError` (flask, pandas, sklearn) | Activate the virtual environment and run `pip install -r requirements.txt` again |
+| Import errors from NumPy or pandas | Create a fresh virtual environment and reinstall |
+| `InconsistentVersionWarning` from scikit-learn | Harmless. `requirements.txt` pins `scikit-learn==1.8.0`, the version the model was saved with, which avoids it |
+| "Scan failed. Is the backend running?" | The terminal running `app.py` was closed. Start it again |
 
-## How it works
+---
 
-```
-PCAP  ->  windows of 10 packets  ->  features  ->  impute + scale  ->  model  ->  probability per window
-                                                                                   |
-                                  flagged if probability >= the model's threshold  v
-                                  alert if at least 5 of the last 10 windows are flagged
-```
+## 5. Using the Application
 
-- `pcap_features.py` turns a raw PCAP into the same kind of rows as `pcap.parquet`. The dataset does not publish its feature definitions, so some are decoded from the data and a few are estimated (Rate, IAT, LLC). See Limitations.
-- `preprocess.joblib` holds the imputer, the scaler and the column order from training, so live rows are prepared exactly like training rows.
-- One flagged window is weak evidence, so the app reports **alerts** (at least 5 of the last 10 windows flagged) next to single flagged windows.
+1. On the **Scan** tab, use the slider to choose how many traffic windows to analyze (100 to 2,000).
+2. Press **SCAN**. A progress ring runs for a few seconds, then the results appear.
+3. Review the results:
+   - **Summary cards:** windows scanned, windows flagged, status (`Threats found` or `Clean`) and model scoring time. Because the demo windows carry true labels, three extra cards also show accuracy, missed malware and false alarms (marked "demo only").
+   - **Top 10 highest-scoring windows:** score, verdict, severity and true label.
+   - **Most important features:** the inputs the Random Forest relies on most.
+   - **Model performance (final test set):** the held-out test results from Section 6.
+   - **Download CSV:** saves every scored window as `scan_report.csv`.
+4. Open the **History** tab to see previous scans (stored in a local SQLite database). **Clear history** removes them.
 
-### Models
+**What to expect.** The stored sample contains equal numbers of benign and malware windows, and each scan draws a random subset. A scan of 1,000 windows therefore flags a little over half of them, with accuracy around 97% to 98%. In one test run on 1,000 windows: 522 flagged, 3 missed, 20 false alarms, 97.7% accuracy. Exact numbers vary slightly between scans.
 
-| Model | File | Training data | Features | Threshold |
-|---|---|---|---|---|
-| A | `best_model.joblib` | Sandbox data only | 36 | 0.2 (picked on validation, `step9.py`) |
-| B | `best_model_realworld.joblib` | Sandbox + real benign traffic | 36 | 0.4 (best F1 on validation) |
-| C | `best_model_c.joblib` | Sandbox + real benign traffic | 33 (no TTL, Rate, IAT) | 0.5 (best F1 on validation) |
+---
 
-All three are the same tuned Random Forest settings. Use Model C for real traffic because it depends least on the capturing device and on estimated features. That is a design choice, not a measured result. Compare the models on your own captures with `evaluate_captures.py`.
+## 6. Model Performance
 
-### Results so far (validation set, threshold 0.5)
+### Model comparison (validation set, threshold 0.5)
 
 | Model | Recall | Precision | F1 | ROC AUC | Missed | False alarms |
 |---|---|---|---|---|---|---|
@@ -52,112 +163,98 @@ All three are the same tuned Random Forest settings. Use Model C for real traffi
 | Random Forest (baseline) | 0.9868 | 0.9926 | 0.9897 | 0.9969 | 449 | 252 |
 | **Random Forest (tuned)** | 0.9812 | 0.9973 | 0.9892 | 0.9980 | 642 | 90 |
 
-Tuning changed the F1 score very little (Random Forest 0.9897 to 0.9892). Its main effect was fewer false alarms (252 to 90) at the cost of more missed windows, and the lower threshold chosen in `step9.py` wins some of that recall back. Final test-set scores come from `python step9.py`, which is run once.
+Tuning changed F1 very little. Its main effect was reducing false alarms (252 to 90) at the cost of more missed windows. We selected the tuned Random Forest because it has the highest ROC AUC and the fewest false alarms among the strongest models, then lowered the decision threshold to 0.2 on the validation set to recover malware that would otherwise be missed.
 
-These numbers are on sandbox data. They say how well the model separates sandbox benign traffic from sandbox malware, not how it performs on a real network.
+### Final test set (tuned Random Forest, threshold 0.2, scored once)
 
-## Setup
+| Recall | Precision | F1 | ROC AUC | Missed | False alarms |
+|---|---|---|---|---|---|
+| 0.9897 | 0.9891 | 0.9894 | 0.9982 | 350 | 372 |
 
-Python 3.10 or newer.
+### Validation checks
 
-```
-python -m venv .venv
-source .venv/bin/activate            # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
+- **Protocol shortcut check.** The first decision tree relied heavily on the TCP feature, which raised the concern that the model only learns "TCP traffic means malware". Removing TCP changed nothing (F1 stayed at 0.9897), and removing all protocol columns lowered F1 by only 0.0009. The model's accuracy does not depend on a single protocol column. Because SYN flags and header length still reveal TCP, this shows robustness to the column, not proof that the model ignores protocol entirely.
+- **Per-family check.** Recall was between 98.6% and 100% for every malware family in the validation set, so the high overall score is not driven by one dominant family (Mirai is about 70% of the malware).
 
-### Quick start (no training)
+These results measure how well the model separates benign from malicious traffic in this dataset. They are not a prediction of performance on every other network (see Section 10).
 
-If the repo contains `preprocess.joblib`, `best_model_c.joblib` and `demo_sample.joblib`, you can skip straight to [Run the app](#run-the-app) and to the sample check below.
+---
 
-### Full pipeline (retrains everything)
-
-1. Download `pcap.parquet` from the CIC-YNU-IoTMal dataset (Canadian Institute for Cybersecurity) and place it in the repo root. [TEAM: add the download URL and the dataset license]
-2. Run the scripts in this order. Each one saves files for the next.
-
-| Step | Command | Saves |
-|---|---|---|
-| 1 | `python cecs451proj.py` | `splits.joblib`, `preprocess.joblib` (also prints the exploration and baseline results) |
-| 2 | `python tunning.py` | `best_model.joblib` (Model A), `tuning_results.csv` |
-| 3 | `python step9.py` | Prints the test-set scores. **Run once.** Saves the threshold into `best_model.joblib` |
-| 4 | `python train_realworld.py real_benign.pcap` | `best_model_realworld.joblib` (Model B). Needs your own benign capture |
-| 5 | `python compare_models.py` | `best_model_c.joblib` (Model C) and a comparison of A, B and C. Needs `real_benign.pcap`. `second_session.pcap` and `mirai_test.pcap` are used if present |
-| 6 | `python make_demo_sample.py` | `demo_sample.joblib`, a small test sample so the demo runs without `splits.joblib` |
-
-`tunning.py` can take a long time. Set `CHOOSE_K_ONLY = True` at the top to print only the fold-count table first.
-
-### Run the app
+## 7. System Architecture
 
 ```
-python ui/backend/app.py
+Browser (ui/frontend)  <-- HTTP / JSON -->  Flask server (ui/backend/app.py)
+                                                |-- model_service.py : loads the model, scores windows
+                                                |-- data_source.py   : supplies windows (demo_samples.csv)
+                                                `-- db.py            : SQLite scan history
 ```
 
-[TEAM: confirm this command and the port, then add the address to open.]
-
-- **Demo mode** (main page). Press Scan to score random records from the held-out sandbox test set. These are recorded rows with true labels, so the page can also show missed malware and false alarms. It is real model scoring on replayed data, not a scan of live traffic.
-- **Real-traffic mode** (`/pcap`). Upload a `.pcap` or `.pcapng` exported from Wireshark or tcpdump (Ethernet captures), pick a model, and press Scan. You get a status, flagged windows, alert episodes, a timeline, the 100 highest scoring windows with "what stands out", and a link to the full CSV. The file is deleted from the server after scoring. To turn this page on, `app.py` needs these two lines:
-
-```python
-from pcap_routes import bp as pcap_bp
-app.register_blueprint(pcap_bp)
-```
-
-### Reproduce a sample result
-
-This checks that the real-traffic pipeline runs. The captures are **synthetic** (made-up packets), so the result proves the plumbing, not accuracy.
-
-```
-python make_sample_pcap.py
-python evaluate_captures.py benign:sample_data/synthetic_browsing.pcap malware:sample_data/synthetic_scan.pcap
-```
-
-Expected with Models B and C: the browsing-like capture has 0.0% of windows flagged and no alerts. The scan-like capture has 100.0% of windows flagged, 96.7% inside one alert episode.
-
-## Checking how far the results can be trusted
-
-| Question | Script | What it does |
-|---|---|---|
-| Does it catch a malware family it never saw in training? | `python family_holdout.py` (`--fast` for a quick run) | Leaves one family out of training at a time and measures recall on it. Compares with the recall when the family was in training |
-| Does it work on real captures, benign and malware? | `python evaluate_captures.py benign:a.pcap malware:b.pcap` | Prints false alarm rate (benign) and detection rate (malware) for every model, per window and per alert, and saves `capture_eval.csv` |
-| Does `pcap_features.py` compute the same numbers as the dataset? | `python feature_parity.py sample.pcap --hash <Hash>` | Extracts features from a raw dataset PCAP and compares them with the `pcap.parquet` rows of the same sample. `--list-hashes` shows values to use |
-
-For the malware check, use a labeled capture that does **not** come from the training dataset. Only analyze capture files. Do not run malware to produce traffic.
-
-## Files
-
-| File | Purpose |
+| Endpoint | Purpose |
 |---|---|
-| `cecs451proj.py` | Exploration, cleaning, split, imputation, scaling, baseline models, protocol theories |
-| `tunning.py` | Hyperparameter search for the three models, threshold sweep, saves Model A |
-| `step9.py` | One-time test-set scoring, saves the threshold |
-| `pcap_features.py` | Raw PCAP to window features (10 packets per window) |
-| `pcap_scoring.py` | Scores a PCAP with a saved model: flags, alerts, reasons, timeline |
-| `scan_pcap.py` | Command line scan of one PCAP, prints diagnostics, saves `real_scan_results.csv` |
-| `train_realworld.py` | Builds Model B from a real benign capture (time ordered split) |
-| `compare_models.py` | Builds Model C and compares A, B, C on every capture |
-| `evaluate_captures.py` | Compares models on any labeled captures |
-| `family_holdout.py` | Leave-one-malware-family-out test |
-| `feature_parity.py` | Checks the feature definitions against the dataset |
-| `make_demo_sample.py`, `make_sample_pcap.py` | Create the small demo sample and the synthetic sample captures |
-| `ui/backend/model_service.py`, `data_source.py` | Demo mode: model loading and replayed test records |
-| `ui/backend/pcap_routes.py` | Real-traffic mode: upload page and API |
-| `ui/` (frontend), `config.js` | Web page and its settings |
-| `database/` | SQLite layer: users, models, scans, scored windows (see `database/DATABASE.md`) |
+| `POST /api/scan` | Body `{"records": N}` with N from 100 to 2000. Scores N windows and returns the report |
+| `GET /api/history` | Returns previous scans |
+| `DELETE /api/history` | Clears scan history |
 
-## Limitations
+The data source is isolated in one function (`get_records()` in `data_source.py`), so replacing the stored demo windows with windows built from captured traffic does not require changing the model service or the interface.
 
-- **Malware coverage.** All malware examples are IoT malware from sandbox runs, about 70% Mirai. How well the model catches other families is measured by `family_holdout.py`. [TEAM: add the result]
-- **Benign coverage.** Benign data is the dataset's benign traffic plus captures from one network and device. A different network can look different, and false alarms on real traffic are the main risk.
-- **Estimated features.** The dataset does not document its features. Rate, IAT and LLC in `pcap_features.py` are estimates. Model C drops TTL, Rate and IAT but still uses LLC. `feature_parity.py` is how to check this.
-- **Weak evidence per window.** A window is 10 packets. That is why alerts need several flagged windows.
-- **Explanations are approximate.** "What stands out" lists features that are unusual and important to the model. It is not an exact explanation of one prediction.
-- **No live capture in the app.** Real-traffic mode needs a PCAP file. Link types other than Ethernet or raw IP are rejected.
-- **No login on the real-traffic page.** Run the app on your own machine only. Do not expose it to a network.
-- **Not a security product.** Results are decision support, not proof that a machine is infected or clean.
+---
 
-## Responsible use and privacy
+## 8. Repository Contents
 
-- Only capture and analyze traffic on networks you own or have permission to monitor.
-- A PCAP can contain private information (addresses, DNS names, content). Do not commit captures. They are in `.gitignore`.
-- The app keeps only per-window feature summaries and scores, not packet contents. Uploaded files are deleted right after scoring.
-- Do not put passwords, API keys, or other secrets in the repo. The database file is in `.gitignore` because it holds password hashes and scan results.
+| Path | Purpose |
+|---|---|
+| `ui/frontend/` | Web interface: `index.html`, `css/`, `js/` |
+| `ui/backend/app.py` | Flask server and API |
+| `ui/backend/model_service.py` | Loads the model, scores windows, builds the report |
+| `ui/backend/data_source.py` | Supplies the windows to scan |
+| `ui/backend/db.py` | SQLite scan history |
+| `best_model.joblib` | Trained Random Forest and its decision threshold |
+| `demo_samples.csv` | 2,000 stored sandbox windows (1,000 benign, 1,000 malware) with true labels |
+| `preprocess.joblib` | Imputer, scaler and column order used in training |
+| `pipeline_models.py` | Data preparation, split and baseline models |
+| `tuning_models.py` | Hyperparameter tuning and threshold sweep |
+| `final_test.py` | One-time test-set scoring |
+| `train_realworld.py`, `compare_models.py` | Experiments adding real benign traffic (Models B and C) |
+| `WS_pcap.py`, `scan_pcap.py` | Convert a raw PCAP to model features and score it from the command line |
+| `tuning_results.csv` | Baseline versus tuned validation scores |
+| `requirements.txt` | Python dependencies |
+
+---
+
+## 9. Retraining the Models
+
+Not needed for the demo. Retraining requires `pcap.parquet` from the CIC-YNU-IoTMal dataset placed in the top folder.
+
+| Step | Command | Result |
+|---|---|---|
+| 1 | `python pipeline_models.py` | Prepares the data, saves `splits.joblib` and `preprocess.joblib` |
+| 2 | `python tuning_models.py` | Tunes the models, saves `best_model.joblib` and `tuning_results.csv` (slow; set `CHOOSE_K_ONLY = True` to print only the fold-count table first) |
+| 3 | `python final_test.py` | Scores the test set once and saves the threshold into the model file |
+| 4 | `python train_realworld.py real_benign.pcap` | Optional experiment: Model B, adds real benign traffic from your own capture |
+| 5 | `python compare_models.py` | Optional experiment: Model C, drops device-dependent features, and compares all models |
+
+Models B and C are experiments on how the model behaves with real benign traffic. The demo application uses the main model (Model A).
+
+---
+
+## 10. Scope and Limitations
+
+We state these plainly so the results are read in the right context.
+
+- **Demo data.** The application replays stored sandbox traffic. It does not monitor the machine or network it runs on.
+- **Malware coverage.** The malware examples are IoT malware from sandbox runs, mostly Mirai. The model has not been validated on other malware families or on enterprise attacks such as ransomware.
+- **Benign coverage.** Benign training data is mostly IoT background traffic. Traffic from a different network may look different, and false alarms on unfamiliar traffic are the main risk.
+- **Balanced demo sample.** The demo sample is half malware. Real networks are almost entirely benign, so the share of windows flagged in the demo does not carry over.
+- **Feature definitions.** The dataset does not document how its features are computed. When features are built from a raw PCAP, a few (rate, inter-arrival time, LLC) are our estimates.
+- **One window is weak evidence.** A window contains only 10 packets.
+- **Decision support only.** A flag is a prompt to investigate, not proof of infection, and a clean result is not proof of safety.
+- **No authentication.** Run the application on your own computer only.
+
+---
+
+## 11. Responsible Use
+
+- Capture and analyze traffic only on networks you own or have permission to monitor.
+- Packet captures can contain private information. Do not commit them to the repository (they are excluded in `.gitignore`).
+- The application stores only per-scan summaries (counts, duration, status), not packet contents.
+- Do not store passwords or API keys in the repository.
