@@ -106,7 +106,7 @@ macOS or Linux:
 ```
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r ui/requirements.txt
+pip install -r requirements.txt
 ```
 
 Windows (PowerShell):
@@ -114,7 +114,7 @@ Windows (PowerShell):
 ```
 python -m venv .venv
 .venv\Scripts\activate
-pip install -r ui/requirements.txt
+pip install -r requirements.txt
 ```
 
 `requirements.txt` pins exact versions. scikit-learn is pinned to 1.8.0 because that is the version the model file was saved with.
@@ -153,9 +153,9 @@ The terminal prints `Model: {'name': 'Random Forest', 'threshold': 0.2}` and `Ru
 |---|---|
 | Port 5000 is in use, or the page does not load (common on macOS, where AirPlay Receiver uses port 5000) | Turn off AirPlay Receiver in System Settings > General > AirDrop & Handoff, or change the last line of `ui/backend/app.py` to `app.run(port=5001, debug=False)` and open `http://127.0.0.1:5001` |
 | `FileNotFoundError` for `best_model.joblib` or `demo_samples.csv` | Both files must be in the top folder, or in the folder named by `MODEL_DIR` |
-| `ModuleNotFoundError` | Activate the virtual environment and run `pip install -r ui/requirements.txt` again |
+| `ModuleNotFoundError` | Activate the virtual environment and run `pip install -r requirements.txt` again |
 | NumPy or pandas import errors | Create a fresh virtual environment and reinstall |
-| `InconsistentVersionWarning` from scikit-learn | The installed scikit-learn is not 1.8.0. Reinstall with `ui/requirements.txt` |
+| `InconsistentVersionWarning` from scikit-learn | The installed scikit-learn is not 1.8.0. Reinstall with `requirements.txt` |
 | "Scan failed. Is the backend running?" | The terminal running `app.py` was closed. Start it again |
 | Want an empty History | Press **Clear history**, or stop the app and delete `ui/backend/scans.db` (it is recreated on start) |
 
